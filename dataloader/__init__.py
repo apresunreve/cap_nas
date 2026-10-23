@@ -36,16 +36,43 @@ lighting_param = 0.1
 # lazy, so an unset variable only raises when that dataset is actually used.
 
 
-def _dataset_root(*env_vars: str) -> str:
-    """First env var that is set wins; raise naming all of them if none is."""
+# realpath, not abspath: this module is also reached through the
+# model/DataLoader symlink, which would otherwise resolve to model/config/.
+_CONFIG_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+    "config", "defaults.yaml")
+_config_datasets = None
+
+
+def _config_datapath(dataset: str):
+    """`datapath` for a dataset from config/defaults.yaml, or None."""
+    global _config_datasets
+    if _config_datasets is None:
+        try:
+            import yaml
+            with open(_CONFIG_PATH, encoding="utf-8") as handle:
+                _config_datasets = (yaml.safe_load(handle) or {}).get("datasets", {})
+        except Exception:
+            _config_datasets = {}
+    entry = _config_datasets.get(dataset) or {}
+    value = entry.get("datapath")
+    return os.path.expanduser(str(value)) if value else None
+
+
+def _dataset_root(*env_vars: str, dataset: str = "") -> str:
+    """Environment variables first, then `datapath` in config/defaults.yaml."""
     for env_var in env_vars:
         value = os.environ.get(env_var)
         if value:
             return os.path.expanduser(value)
+    if dataset:
+        value = _config_datapath(dataset)
+        if value:
+            return value
     names = " or ".join(env_vars)
     raise RuntimeError(
-        f"Dataset root not configured: set {names} to the directory "
-        f"containing this dataset."
+        f"Dataset root not configured: set {names}, or `datapath` for "
+        f"{dataset or 'this dataset'!r} in config/defaults.yaml."
     )
 
 
@@ -55,18 +82,20 @@ class _Root:
     Several env vars may be given; the first one set wins.
     """
 
-    __slots__ = ("env_vars", "subdirs")
+    __slots__ = ("env_vars", "subdirs", "dataset")
 
-    def __init__(self, env_vars, *subdirs: str):
+    def __init__(self, env_vars, *subdirs: str, dataset: str = ""):
         self.env_vars = (env_vars,) if isinstance(env_vars, str) else tuple(env_vars)
         self.subdirs = subdirs
+        self.dataset = dataset
 
     @property
     def env_var(self) -> str:
         return self.env_vars[0]
 
     def resolve(self) -> str:
-        return os.path.join(_dataset_root(*self.env_vars), *self.subdirs)
+        root = _dataset_root(*self.env_vars, dataset=self.dataset)
+        return os.path.join(root, *self.subdirs)
 
 
 class _ParamsDict(dict):
@@ -83,7 +112,7 @@ class _ParamsDict(dict):
 
 
 def _imagenet100_root() -> str:
-    return _dataset_root("CAP_NAS_IMAGENET100_ROOT")
+    return _dataset_root("CAP_NAS_IMAGENET100_ROOT", dataset="imagenet100")
 
 
 _SPLIT_DIRS = ("train", "val", "test")
@@ -121,8 +150,8 @@ def _remap_imagenet100_samples(the_dataset, local_root: str) -> None:
 
 params_dict = _ParamsDict({
     'cifar100': {
-        'train_dir': _Root('CAP_NAS_CIFAR100_ROOT'),
-        'val_dir': _Root('CAP_NAS_CIFAR100_ROOT'),
+        'train_dir': _Root('CAP_NAS_CIFAR100_ROOT', dataset='cifar100'),
+        'val_dir': _Root('CAP_NAS_CIFAR100_ROOT', dataset='cifar100'),
         'num_train_samples': 50000,
         'num_val_samples': 10000,
         'num_classes': 100,
@@ -130,27 +159,27 @@ params_dict = _ParamsDict({
     # iNat 2019. Class dirs are 4-digit zero-padded so that ImageFolder's
     # sorted() class order matches the numeric class id.
     'inat': {
-        'train_dir': _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'train'),
-        'val_dir':   _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'val'),
-        'test_dir':  _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'test'),
+        'train_dir': _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'train', dataset='inat_resized'),
+        'val_dir':   _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'val', dataset='inat_resized'),
+        'test_dir':  _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'test', dataset='inat_resized'),
         'num_train_samples': 262183,
         'num_val_samples': 3030,
         'num_test_samples': 3030,
         'num_classes': 1010,
     },
     'inat_resized': {
-        'train_dir': _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'train'),
-        'val_dir':   _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'val'),
-        'test_dir':  _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'test'),
+        'train_dir': _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'train', dataset='inat_resized'),
+        'val_dir':   _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'val', dataset='inat_resized'),
+        'test_dir':  _Root(('CAP_NAS_INAT_ROOT', 'CAP_NAS_INAT_RESIZED_ROOT'), 'test', dataset='inat_resized'),
         'num_train_samples': 262183,
         'num_val_samples': 3030,
         'num_test_samples': 3030,
         'num_classes': 1010,
     },
     'imagenet100':{
-        'train_dir': _Root('CAP_NAS_IMAGENET100_ROOT', 'train'),
-        'val_dir': _Root('CAP_NAS_IMAGENET100_ROOT', 'val'),
-        'test_dir': _Root('CAP_NAS_IMAGENET100_ROOT', 'test'),
+        'train_dir': _Root('CAP_NAS_IMAGENET100_ROOT', 'train', dataset='imagenet100'),
+        'val_dir': _Root('CAP_NAS_IMAGENET100_ROOT', 'val', dataset='imagenet100'),
+        'test_dir': _Root('CAP_NAS_IMAGENET100_ROOT', 'test', dataset='imagenet100'),
         'num_train_samples': 117000,
         'num_val_samples': 5000,
         'num_test_samples': 13000,

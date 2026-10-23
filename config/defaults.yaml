@@ -1,24 +1,23 @@
-# Dataset locations are machine-specific: this package ships no default paths.
-# Set them here, or override with CAP_NAS_<DATASET>_DATAPATH environment vars.
-# Leave as null to be forced to configure a dataset before it can be used.
+# Dataset locations. Override any of these with CAP_NAS_<DATASET>_DATAPATH or
+# CAP_NAS_<DATASET>_ROOT environment variables, which take precedence.
 
 datasets:
   cifar100:
     num_classes: 100
     input_image_size: 224
-    datapath: null    # set to your cifar100 directory
+    datapath: /scratch/general/nfs1/u1320844/cifar100/
     epochs: 200
     batch_size_per_gpu: 256
   imagenet100:
     num_classes: 100
     input_image_size: 224
-    datapath: null    # set to your ImageNet-100 directory (expects train/ val/ test/)
+    datapath: /scratch/general/nfs1/u1320844/in100_imagefolder/   # expects train/ val/ test/
     epochs: 200
     batch_size_per_gpu: 256
   inat_resized:
     num_classes: 1010
     input_image_size: 224
-    datapath: null    # set to your iNat directory
+    datapath: /scratch/general/nfs1/u1320844/inat_imagefolder/    # expects train/ val/ test/
     epochs: 100
     batch_size_per_gpu: 256
 
