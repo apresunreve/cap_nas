@@ -6,3 +6,5 @@ torchvision>=0.15
 timm>=0.9
 tqdm>=4.65
 ptflops>=0.7
+scipy>=1.10
+functorch>=2.0

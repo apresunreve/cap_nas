@@ -1,8 +1,8 @@
 """
 Search space constrained to the EXACT same per-stage channel ranges as the
-enumeration algorithm (ICS). Uses the timing JSON for block lookups but filters
-candidates to only those in_ch/out_ch combos that appear in the enumeration CSV
-at each block index.
+enumeration algorithm (ICS). Valid blocks and the per-position in_ch/out_ch
+ranges are both read from the bundled block lookup, so the space always matches
+the shipped lookup.
 
 Pre-computes valid blocks indexed by in_channel AND filters by block_idx at
 search time. Guarantees zero missing blocks and perfect connectivity.
@@ -10,7 +10,7 @@ search time. Guarantees zero missing blocks and perfect connectivity.
 Usage:
     --search_space SearchSpace/search_space_IDW_fixfc_enum_space.py
 """
-import os, sys, json, re, csv
+import os, sys, re, csv
 from collections import defaultdict
 
 from utils.paths import DATA_DIR, LOOKUP_CSV, REPO_ROOT, setup_model_path
@@ -39,47 +39,34 @@ def _init_lookup():
     if _valid_idw:
         return
 
-    # --- Load timing JSON ---
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    json_path = REPO_ROOT / "idw_block_lookup_jetson_gpu_timing_full_merged.json"
-    if not json_path.exists():
-        json_path = REPO_ROOT / "idw_block_lookup_jetson_gpu_timing_full.json"
-
-    with open(str(json_path)) as f:
-        data = json.load(f)
-
-    for block_str in data:
-        m = _idw_pat.match(block_str)
-        if m:
-            exp, k, in_ch, out_ch, stride, btl, sub = map(int, m.groups())
-            _valid_idw[in_ch].append((exp, k, out_ch, btl, sub, block_str))
-            continue
-        m = _stem_pat.match(block_str)
-        if m:
-            _valid_stem.append(block_str)
-
-    # --- Load enumeration CSV for per-position channel ranges ---
-    csv_path = LOOKUP_CSV
-    if not csv_path.exists():
-        csv_path = REPO_ROOT / "standalone" / "data" / "idw_block_lookup.csv"
-
-    with open(str(csv_path)) as f:
+    # Valid block strings and the per-position channel ranges both come from the
+    # bundled block lookup. Block strings are collected across positions (keyed
+    # by in_ch); gen_search_space then filters per position using the ranges.
+    seen_idw = set()
+    with open(str(LOOKUP_CSV)) as f:
         for row in csv.DictReader(f):
-            idx = int(row['block_idx'])
+            idx_raw = row.get('block_idx', '').strip()
+            if not idx_raw.isdigit():
+                continue
+            idx = int(idx_raw)
+            block_str = row['block_str']
+
+            m = _idw_pat.match(block_str)
+            if m and block_str not in seen_idw:
+                seen_idw.add(block_str)
+                exp, k, in_ch, out_ch, stride, btl, sub = map(int, m.groups())
+                _valid_idw[in_ch].append((exp, k, out_ch, btl, sub, block_str))
+            elif _stem_pat.match(block_str) and block_str not in _valid_stem:
+                _valid_stem.append(block_str)
+
             ic = row['in_channels'].strip()
             oc = row['out_channels'].strip()
             if idx >= 1 and ic and oc:
                 _enum_in_ch.setdefault(idx, set()).add(int(ic))
                 _enum_out_ch.setdefault(idx, set()).add(int(oc))
 
-    # Report
-    stem_outs = set()
-    for s in _valid_stem:
-        m = _stem_pat.match(s)
-        if m: stem_outs.add(int(m.group(2)))
-
-    print(f"[enum_space] JSON: {len(data)} entries, {len(_valid_idw)} in_ch keys, "
-          f"{len(_valid_stem)} stem blocks")
+    print(f"[enum_space] lookup: {len(seen_idw)} IDW blocks over "
+          f"{len(_valid_idw)} in_ch keys, {len(_valid_stem)} stem blocks")
     for idx in sorted(_enum_in_ch):
         print(f"  IDW{idx}: in={sorted(_enum_in_ch[idx])}  out={sorted(_enum_out_ch[idx])}")
 

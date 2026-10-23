@@ -12,8 +12,8 @@ Dataset paths have no defaults. Set the ones you need:
 | dataset | env var | layout |
 |---|---|---|
 | `cifar100` | `CAP_NAS_CIFAR100_ROOT` | torchvision CIFAR-100 dir |
-| `imagenet100` | `CAP_NAS_IMAGENET100_ROOT` | `train/ val/ test/` of class dirs |
-| `inat_resized` | `CAP_NAS_INAT_ROOT` | `train/ val/ test/`, 4-digit class dirs |
+| `imagenet100` | `CAP_NAS_IMAGENET100_ROOT` | `train/ val/ test/`|
+| `inat_resized` | `CAP_NAS_INAT_ROOT` | `train/ val/ test/`|
 
 An unset variable raises only when that dataset is used, naming what to set.
 
@@ -61,7 +61,37 @@ structure strings to `$CAP_NAS_RESULTS_DIR/top3_structures/`. The variable
 defaults to `./cap_nas_results` in the directory you run from; results are never
 written inside the package. Re-running skips families already complete.
 
----
+### Baseline zero-shot search
+
+`az_nas/` searches the same space with the six baseline proxies — `Zen`,
+`Syncflow`, `NASWOT`, `az_nas`, `vkdnw`, `zico`:
+
+
+```bash
+cd az_nas
+SAVE=~/cap_nas_results/naswot_lat10ms
+mkdir -p $SAVE
+
+# seed: see "Choosing the seed" below
+echo "SuperConvK3BNRELU(3,8,2,1)SuperResIDWE6K3(8,32,2,16,1)SuperResIDWE6K3(32,48,2,48,1)SuperResIDWE6K3(48,96,2,96,1)SuperResIDWE6K3(96,128,2,128,1)SuperConvK1BNRELU(128,2048,1,1)" \
+  > $SAVE/init_plainnet.txt
+
+python evolution_search_baselines.py \
+  --zero_shot_score NASWOT --budget_latency 10 \
+  --evolution_max_iter 100000 --population_size 512 \
+  --plainnet_struct_txt $SAVE/init_plainnet.txt \
+  --save_dir $SAVE --gpu 0
+```
+
+Swap `--budget_latency` for `--budget_flops` or `--budget_params` to change the
+constraint family; `--max_layers` (default 14) and `--budget_model_size` also
+apply. 
+
+
+Writes `best_structure.txt` to `--save_dir`, which `training/train.py` takes
+directly as `--structure-txt`.
+
+`--datapath` is optional
 
 ## 2. Training
 
@@ -102,6 +132,7 @@ Per-dataset `epochs` / `batch_size_per_gpu` / `num_classes` defaults come from
 - `--epochs` must exceed `--warmup` (hardcoded 5), so **use >= 6**.
 - `--num_classes` and the input size come from `config/defaults.yaml` per dataset.
 
+
 ### Low GPU memory
 
 `training/train_gradckpt.py` takes the same arguments as `train.py` and adds
@@ -116,6 +147,7 @@ cost of recomputing each block during backward.
 scoring/        CAP-NAS score
 search_space/   IDW search space
 enumeration/    search engine + lookup builders + driver
+az_nas/         baseline zero-shot search (6 proxies)
 model/          PlainNet / MasterNet / baselines
 dataloader/     the 3 datasets (plain torchvision ImageFolder)
 training/       timm_trainer + launchers
