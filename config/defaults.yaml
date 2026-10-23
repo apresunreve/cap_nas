@@ -1,0 +1,33 @@
+# Dataset locations are machine-specific: this package ships no default paths.
+# Set them here, or override with CAP_NAS_<DATASET>_DATAPATH environment vars.
+# Leave as null to be forced to configure a dataset before it can be used.
+
+datasets:
+  cifar100:
+    num_classes: 100
+    input_image_size: 224
+    datapath: null    # set to your cifar100 directory
+    epochs: 200
+    batch_size_per_gpu: 256
+  imagenet100:
+    num_classes: 100
+    input_image_size: 224
+    datapath: null    # set to your ImageNet-100 directory (expects train/ val/ test/)
+    epochs: 200
+    batch_size_per_gpu: 256
+  inat_resized:
+    num_classes: 1010
+    input_image_size: 224
+    datapath: null    # set to your iNat directory
+    epochs: 100
+    batch_size_per_gpu: 256
+
+search_space:
+  seed_structure: SuperConvK3BNRELU(3,8,2,1)SuperResIDWE6K3(8,32,2,8,1)SuperResIDWE6K3(32,48,2,32,1)SuperResIDWE6K3(48,96,2,48,1)SuperResIDWE6K3(96,128,2,96,1)SuperConvK1BNRELU(128,2048,1,1)
+  max_layers: 14
+
+enumeration:
+  default_bin_size_flops: 1000000.0
+  default_bin_size_latency_ms: 0.1
+  states_per_key: 6
+  top_n: 10
