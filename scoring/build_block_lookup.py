@@ -1,9 +1,13 @@
-"""Build the block lookup CSV by delegating to the GPU block profiler.
+"""Add the measured latency columns to a block lookup CSV.
 
-The lookup is produced in a single pass by `benchmarking.profile_gpu_blocks`,
-which profiles every block in the input CSV, then synthesises and profiles the
-FC head (block_idx=5: the projection conv and the classifier). This module is a
-thin front-end over that, so the lookup has one point of truth.
+A thin front-end over `benchmarking.profile_gpu_blocks`, which profiles every
+block in the input CSV, then synthesises and profiles the FC head (block_idx=5:
+the projection conv and the classifier).
+
+This produces only the `jetson_gpu_latency_ms_*` columns. The score columns
+(`analytic_ssr_exp_proj_dw_*`) are computed separately and without a device by
+`scoring.analytic_block_scores`. Together the two cover the lookup; the
+structural columns and flops/params come from the input grid.
 
 Usage:
     python -m scoring.build_block_lookup \\
@@ -15,6 +19,9 @@ Any further flags are passed straight through to the profiler
 (`--warmup`, `--runs`, `--no-fc`, `--fc-num-classes`, ...). Requires a CUDA
 device, and latency is device-specific: profiling on different hardware
 produces a different lookup.
+
+`--input-csv` is the un-profiled block grid, which this package does not ship;
+supply your own, or pass the bundled lookup to refresh its latency in place.
 """
 
 from __future__ import annotations

@@ -61,6 +61,25 @@ structure strings to `$CAP_NAS_RESULTS_DIR/top3_structures/`. The variable
 defaults to `./cap_nas_results` in the directory you run from; results are never
 written inside the package. Re-running skips families already complete.
 
+#### Regenerating the lookup
+
+The lookup's columns come from two independent passes:
+
+```bash
+# score columns -- closed form from the block strings, no GPU, no dataset
+python -m scoring.analytic_block_scores --input-csv grid.csv --output-csv scored.csv
+
+# latency columns -- measured on the target device
+python -m scoring.build_block_lookup --input-csv scored.csv \
+  --output-csv data/block_lookup/idw_block_lookup_jetson_gpu.csv --device cuda:0
+```
+
+To check the bundled lookup against the score implementation:
+
+```bash
+python -m scoring.analytic_block_scores --verify data/block_lookup/idw_block_lookup_jetson_gpu.csv
+```
+
 ### Baseline zero-shot search
 
 `az_nas/` searches the same space with the six baseline proxies — `Zen`,
